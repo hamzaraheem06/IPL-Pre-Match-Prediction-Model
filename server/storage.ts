@@ -1,11 +1,18 @@
-import { 
-  type Team, type InsertTeam,
-  type Venue, type InsertVenue,
-  type Match, type InsertMatch,
-  type Prediction, type InsertPrediction,
-  type HeadToHeadStats, type InsertHeadToHeadStats,
-  type TeamStats, type InsertTeamStats,
-  type VenueStats, type InsertVenueStats,
+import {
+  type Team,
+  type InsertTeam,
+  type Venue,
+  type InsertVenue,
+  type Match,
+  type InsertMatch,
+  type Prediction,
+  type InsertPrediction,
+  type HeadToHeadStats,
+  type InsertHeadToHeadStats,
+  type TeamStats,
+  type InsertTeamStats,
+  type VenueStats,
+  type InsertVenueStats,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -14,34 +21,47 @@ export interface IStorage {
   getTeams(): Promise<Team[]>;
   getTeam(id: string): Promise<Team | undefined>;
   createTeam(team: InsertTeam): Promise<Team>;
-  
+
   // Venues
   getVenues(): Promise<Venue[]>;
   getVenue(id: string): Promise<Venue | undefined>;
   createVenue(venue: InsertVenue): Promise<Venue>;
-  
+
   // Matches
   getMatches(): Promise<Match[]>;
   getMatch(id: string): Promise<Match | undefined>;
   createMatch(match: InsertMatch): Promise<Match>;
-  
+
   // Predictions
   getPredictions(): Promise<Prediction[]>;
   getPrediction(id: string): Promise<Prediction | undefined>;
   createPrediction(prediction: InsertPrediction): Promise<Prediction>;
-  
+
   // Head to Head Stats
-  getHeadToHeadStats(team1Id: string, team2Id: string): Promise<HeadToHeadStats | undefined>;
+  getHeadToHeadStats(
+    team1Id: string,
+    team2Id: string
+  ): Promise<HeadToHeadStats | undefined>;
   createHeadToHeadStats(stats: InsertHeadToHeadStats): Promise<HeadToHeadStats>;
-  updateHeadToHeadStats(team1Id: string, team2Id: string, stats: Partial<HeadToHeadStats>): Promise<HeadToHeadStats | undefined>;
-  
+  updateHeadToHeadStats(
+    team1Id: string,
+    team2Id: string,
+    stats: Partial<HeadToHeadStats>
+  ): Promise<HeadToHeadStats | undefined>;
+
   // Team Stats
   getTeamStats(teamId: string): Promise<TeamStats | undefined>;
   createTeamStats(stats: InsertTeamStats): Promise<TeamStats>;
-  updateTeamStats(teamId: string, stats: Partial<TeamStats>): Promise<TeamStats | undefined>;
-  
+  updateTeamStats(
+    teamId: string,
+    stats: Partial<TeamStats>
+  ): Promise<TeamStats | undefined>;
+
   // Venue Stats
-  getVenueStats(venueId: string, teamId: string): Promise<VenueStats | undefined>;
+  getVenueStats(
+    venueId: string,
+    teamId: string
+  ): Promise<VenueStats | undefined>;
   getVenueStatsForVenue(venueId: string): Promise<VenueStats[]>;
   createVenueStats(stats: InsertVenueStats): Promise<VenueStats>;
 }
@@ -69,68 +89,130 @@ export class MemStorage implements IStorage {
   private initializeData() {
     // Initialize teams
     const teams: Team[] = [
-      { id: "mi", name: "Mumbai Indians", shortName: "MI", color: "#004BA0", logo: null },
-      { id: "csk", name: "Chennai Super Kings", shortName: "CSK", color: "#FFFF3C", logo: null },
-      { id: "rcb", name: "Royal Challengers Bangalore", shortName: "RCB", color: "#EC1C24", logo: null },
-      { id: "dc", name: "Delhi Capitals", shortName: "DC", color: "#282968", logo: null },
-      { id: "kkr", name: "Kolkata Knight Riders", shortName: "KKR", color: "#3A225D", logo: null },
-      { id: "rr", name: "Rajasthan Royals", shortName: "RR", color: "#E4007C", logo: null },
-      { id: "pbks", name: "Punjab Kings", shortName: "PBKS", color: "#ED1B24", logo: null },
-      { id: "srh", name: "Sunrisers Hyderabad", shortName: "SRH", color: "#FF822A", logo: null },
+      {
+        id: "mi",
+        name: "Mumbai Indians",
+        shortName: "MI",
+        color: "#004BA0",
+        logo: null,
+      },
+      {
+        id: "csk",
+        name: "Chennai Super Kings",
+        shortName: "CSK",
+        color: "#FFFF3C",
+        logo: null,
+      },
+      {
+        id: "rcb",
+        name: "Royal Challengers Bangalore",
+        shortName: "RCB",
+        color: "#EC1C24",
+        logo: null,
+      },
+      {
+        id: "dc",
+        name: "Delhi Capitals",
+        shortName: "DC",
+        color: "#282968",
+        logo: null,
+      },
+      {
+        id: "kkr",
+        name: "Kolkata Knight Riders",
+        shortName: "KKR",
+        color: "#3A225D",
+        logo: null,
+      },
+      {
+        id: "rr",
+        name: "Rajasthan Royals",
+        shortName: "RR",
+        color: "#E4007C",
+        logo: null,
+      },
+      {
+        id: "pbks",
+        name: "Punjab Kings",
+        shortName: "PBKS",
+        color: "#ED1B24",
+        logo: null,
+      },
+      {
+        id: "srh",
+        name: "Sunrisers Hyderabad",
+        shortName: "SRH",
+        color: "#FF822A",
+        logo: null,
+      },
+      {
+        id: "lsg",
+        name: "Lucknow Super Giants",
+        shortName: "LSG",
+        color: "#ED1B24",
+        logo: null,
+      },
+      {
+        id: "gt",
+        name: "Gujrat Titans",
+        shortName: "GT",
+        color: "#FF822A",
+        logo: null,
+      },
     ];
 
-    teams.forEach(team => this.teams.set(team.id, team));
+    teams.forEach((team) => this.teams.set(team.id, team));
 
     // Initialize venues
     const venues: Venue[] = [
-      { 
-        id: "wankhede", 
-        name: "Wankhede Stadium", 
-        city: "Mumbai", 
+      {
+        id: "wankhede",
+        name: "Wankhede Stadium",
+        city: "Mumbai",
         capacity: 33108,
         avgFirstInnings: 178,
         boundaryPercentage: 16.2,
-        sixRate: 2.8
+        sixRate: 2.8,
       },
-      { 
-        id: "eden", 
-        name: "Eden Gardens", 
-        city: "Kolkata", 
+      {
+        id: "eden",
+        name: "Eden Gardens",
+        city: "Kolkata",
         capacity: 68000,
         avgFirstInnings: 165,
         boundaryPercentage: 14.8,
-        sixRate: 2.4
+        sixRate: 2.4,
       },
-      { 
-        id: "chinnaswamy", 
-        name: "M. Chinnaswamy Stadium", 
-        city: "Bangalore", 
+      {
+        id: "chinnaswamy",
+        name: "M. Chinnaswamy Stadium",
+        city: "Bangalore",
         capacity: 40000,
         avgFirstInnings: 185,
         boundaryPercentage: 18.5,
-        sixRate: 3.2
+        sixRate: 3.2,
       },
-      { 
-        id: "arun-jaitley", 
-        name: "Arun Jaitley Stadium", 
-        city: "Delhi", 
+      {
+        id: "arun-jaitley",
+        name: "Arun Jaitley Stadium",
+        city: "Delhi",
         capacity: 41820,
         avgFirstInnings: 170,
         boundaryPercentage: 15.6,
-        sixRate: 2.6
+        sixRate: 2.6,
       },
-      { 
-        id: "chepauk", 
-        name: "MA Chidambaram Stadium", 
-        city: "Chennai", 
+      {
+        id: "chepauk",
+        name: "MA Chidambaram Stadium",
+        city: "Chennai",
         capacity: 50000,
         avgFirstInnings: 158,
         boundaryPercentage: 13.2,
-        sixRate: 2.1
+        sixRate: 2.1,
       },
     ];
 
-    venues.forEach(venue => this.venues.set(venue.id, venue));
+    venues.forEach((venue) => this.venues.set(venue.id, venue));
 
     // Initialize head-to-head stats for MI vs CSK
     const h2hStats: HeadToHeadStats = {
@@ -151,10 +233,25 @@ export class MemStorage implements IStorage {
       deathOversEconomy: 8.2,
       recentForm: [true, true, false, true, true], // W, W, L, W, W
       impactPlayers: [
-        { name: "Rohit Sharma", role: "Batsman", impactScore: 8.4, initials: "RS" },
-        { name: "Jasprit Bumrah", role: "Bowler", impactScore: 7.5, initials: "JB" },
-        { name: "Hardik Pandya", role: "All-rounder", impactScore: 7.2, initials: "HP" },
-      ]
+        {
+          name: "Rohit Sharma",
+          role: "Batsman",
+          impactScore: 8.4,
+          initials: "RS",
+        },
+        {
+          name: "Jasprit Bumrah",
+          role: "Bowler",
+          impactScore: 7.5,
+          initials: "JB",
+        },
+        {
+          name: "Hardik Pandya",
+          role: "All-rounder",
+          impactScore: 7.2,
+          initials: "HP",
+        },
+      ],
     };
     this.teamStats.set("mi", miStats);
 
@@ -165,10 +262,25 @@ export class MemStorage implements IStorage {
       deathOversEconomy: 9.1,
       recentForm: [true, false, true, false, true], // W, L, W, L, W
       impactPlayers: [
-        { name: "MS Dhoni", role: "Wicket-keeper", impactScore: 7.8, initials: "MS" },
-        { name: "Ravindra Jadeja", role: "All-rounder", impactScore: 7.3, initials: "RJ" },
-        { name: "Deepak Chahar", role: "Bowler", impactScore: 6.9, initials: "DC" },
-      ]
+        {
+          name: "MS Dhoni",
+          role: "Wicket-keeper",
+          impactScore: 7.8,
+          initials: "MS",
+        },
+        {
+          name: "Ravindra Jadeja",
+          role: "All-rounder",
+          impactScore: 7.3,
+          initials: "RJ",
+        },
+        {
+          name: "Deepak Chahar",
+          role: "Bowler",
+          impactScore: 6.9,
+          initials: "DC",
+        },
+      ],
     };
     this.teamStats.set("csk", cskStats);
 
@@ -249,21 +361,32 @@ export class MemStorage implements IStorage {
     return this.predictions.get(id);
   }
 
-  async createPrediction(insertPrediction: InsertPrediction): Promise<Prediction> {
+  async createPrediction(
+    insertPrediction: InsertPrediction
+  ): Promise<Prediction> {
     const id = randomUUID();
-    const prediction: Prediction = { ...insertPrediction, id, createdAt: new Date() };
+    const prediction: Prediction = {
+      ...insertPrediction,
+      id,
+      createdAt: new Date(),
+    };
     this.predictions.set(id, prediction);
     return prediction;
   }
 
   // Head to Head Stats
-  async getHeadToHeadStats(team1Id: string, team2Id: string): Promise<HeadToHeadStats | undefined> {
+  async getHeadToHeadStats(
+    team1Id: string,
+    team2Id: string
+  ): Promise<HeadToHeadStats | undefined> {
     const key1 = `${team1Id}-${team2Id}`;
     const key2 = `${team2Id}-${team1Id}`;
     return this.headToHeadStats.get(key1) || this.headToHeadStats.get(key2);
   }
 
-  async createHeadToHeadStats(insertStats: InsertHeadToHeadStats): Promise<HeadToHeadStats> {
+  async createHeadToHeadStats(
+    insertStats: InsertHeadToHeadStats
+  ): Promise<HeadToHeadStats> {
     const id = randomUUID();
     const stats: HeadToHeadStats = { ...insertStats, id };
     const key = `${stats.team1Id}-${stats.team2Id}`;
@@ -271,10 +394,14 @@ export class MemStorage implements IStorage {
     return stats;
   }
 
-  async updateHeadToHeadStats(team1Id: string, team2Id: string, updates: Partial<HeadToHeadStats>): Promise<HeadToHeadStats | undefined> {
+  async updateHeadToHeadStats(
+    team1Id: string,
+    team2Id: string,
+    updates: Partial<HeadToHeadStats>
+  ): Promise<HeadToHeadStats | undefined> {
     const existing = await this.getHeadToHeadStats(team1Id, team2Id);
     if (!existing) return undefined;
-    
+
     const updated = { ...existing, ...updates };
     const key = `${existing.team1Id}-${existing.team2Id}`;
     this.headToHeadStats.set(key, updated);
@@ -293,22 +420,30 @@ export class MemStorage implements IStorage {
     return stats;
   }
 
-  async updateTeamStats(teamId: string, updates: Partial<TeamStats>): Promise<TeamStats | undefined> {
+  async updateTeamStats(
+    teamId: string,
+    updates: Partial<TeamStats>
+  ): Promise<TeamStats | undefined> {
     const existing = this.teamStats.get(teamId);
     if (!existing) return undefined;
-    
+
     const updated = { ...existing, ...updates };
     this.teamStats.set(teamId, updated);
     return updated;
   }
 
   // Venue Stats
-  async getVenueStats(venueId: string, teamId: string): Promise<VenueStats | undefined> {
+  async getVenueStats(
+    venueId: string,
+    teamId: string
+  ): Promise<VenueStats | undefined> {
     return this.venueStats.get(`${venueId}-${teamId}`);
   }
 
   async getVenueStatsForVenue(venueId: string): Promise<VenueStats[]> {
-    return Array.from(this.venueStats.values()).filter(stat => stat.venueId === venueId);
+    return Array.from(this.venueStats.values()).filter(
+      (stat) => stat.venueId === venueId
+    );
   }
 
   async createVenueStats(insertStats: InsertVenueStats): Promise<VenueStats> {

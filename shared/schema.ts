@@ -1,5 +1,14 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, real, boolean, jsonb, timestamp } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  varchar,
+  integer,
+  real,
+  boolean,
+  jsonb,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -22,10 +31,18 @@ export const venues = pgTable("venues", {
 });
 
 export const matches = pgTable("matches", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  team1Id: varchar("team1_id").notNull().references(() => teams.id),
-  team2Id: varchar("team2_id").notNull().references(() => teams.id),
-  venueId: varchar("venue_id").notNull().references(() => venues.id),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  team1Id: varchar("team1_id")
+    .notNull()
+    .references(() => teams.id),
+  team2Id: varchar("team2_id")
+    .notNull()
+    .references(() => teams.id),
+  venueId: varchar("venue_id")
+    .notNull()
+    .references(() => venues.id),
   tossWinner: varchar("toss_winner").references(() => teams.id),
   tossDecision: text("toss_decision"), // "bat" or "bowl"
   result: varchar("result").references(() => teams.id),
@@ -34,11 +51,19 @@ export const matches = pgTable("matches", {
 });
 
 export const predictions = pgTable("predictions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   matchId: varchar("match_id").references(() => matches.id),
-  team1Id: varchar("team1_id").notNull().references(() => teams.id),
-  team2Id: varchar("team2_id").notNull().references(() => teams.id),
-  venueId: varchar("venue_id").notNull().references(() => venues.id),
+  team1Id: varchar("team1_id")
+    .notNull()
+    .references(() => teams.id),
+  team2Id: varchar("team2_id")
+    .notNull()
+    .references(() => teams.id),
+  venueId: varchar("venue_id")
+    .notNull()
+    .references(() => venues.id),
   tossWinner: varchar("toss_winner").references(() => teams.id),
   tossDecision: text("toss_decision"),
   team1WinProbability: real("team1_win_probability").notNull(),
@@ -50,17 +75,27 @@ export const predictions = pgTable("predictions", {
 });
 
 export const headToHeadStats = pgTable("head_to_head_stats", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  team1Id: varchar("team1_id").notNull().references(() => teams.id),
-  team2Id: varchar("team2_id").notNull().references(() => teams.id),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  team1Id: varchar("team1_id")
+    .notNull()
+    .references(() => teams.id),
+  team2Id: varchar("team2_id")
+    .notNull()
+    .references(() => teams.id),
   totalMatches: integer("total_matches").notNull().default(0),
   team1Wins: integer("team1_wins").notNull().default(0),
   team2Wins: integer("team2_wins").notNull().default(0),
 });
 
 export const teamStats = pgTable("team_stats", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  teamId: varchar("team_id").notNull().references(() => teams.id),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id")
+    .notNull()
+    .references(() => teams.id),
   powerplayAvg: real("powerplay_avg"),
   deathOversEconomy: real("death_overs_economy"),
   recentForm: jsonb("recent_form"), // array of recent match results
@@ -68,9 +103,15 @@ export const teamStats = pgTable("team_stats", {
 });
 
 export const venueStats = pgTable("venue_stats", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  venueId: varchar("venue_id").notNull().references(() => venues.id),
-  teamId: varchar("team_id").notNull().references(() => teams.id),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  venueId: varchar("venue_id")
+    .notNull()
+    .references(() => venues.id),
+  teamId: varchar("team_id")
+    .notNull()
+    .references(() => teams.id),
   matches: integer("matches").notNull().default(0),
   wins: integer("wins").notNull().default(0),
   winRate: real("win_rate"),
@@ -78,11 +119,23 @@ export const venueStats = pgTable("venue_stats", {
 
 export const insertTeamSchema = createInsertSchema(teams);
 export const insertVenueSchema = createInsertSchema(venues);
-export const insertMatchSchema = createInsertSchema(matches).omit({ id: true, createdAt: true });
-export const insertPredictionSchema = createInsertSchema(predictions).omit({ id: true, createdAt: true });
-export const insertHeadToHeadStatsSchema = createInsertSchema(headToHeadStats).omit({ id: true });
-export const insertTeamStatsSchema = createInsertSchema(teamStats).omit({ id: true });
-export const insertVenueStatsSchema = createInsertSchema(venueStats).omit({ id: true });
+export const insertMatchSchema = createInsertSchema(matches).omit({
+  id: true,
+  createdAt: true,
+});
+export const insertPredictionSchema = createInsertSchema(predictions).omit({
+  id: true,
+  createdAt: true,
+});
+export const insertHeadToHeadStatsSchema = createInsertSchema(
+  headToHeadStats
+).omit({ id: true });
+export const insertTeamStatsSchema = createInsertSchema(teamStats).omit({
+  id: true,
+});
+export const insertVenueStatsSchema = createInsertSchema(venueStats).omit({
+  id: true,
+});
 
 export type Team = typeof teams.$inferSelect;
 export type Venue = typeof venues.$inferSelect;

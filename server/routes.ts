@@ -2,7 +2,6 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { mlService } from "./ml-service";
-import { insertPredictionSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get all teams
@@ -30,11 +29,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { team1Id, team2Id } = req.params;
       const stats = await storage.getHeadToHeadStats(team1Id, team2Id);
-      
       if (!stats) {
-        return res.status(404).json({ message: "Head-to-head stats not found" });
+        return res
+          .status(404)
+          .json({ message: "Head-to-head stats not found" });
       }
-      
       res.json(stats);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch head-to-head stats" });
@@ -46,11 +45,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { teamId } = req.params;
       const stats = await storage.getTeamStats(teamId);
-      
       if (!stats) {
         return res.status(404).json({ message: "Team stats not found" });
       }
-      
       res.json(stats);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch team stats" });
@@ -68,18 +65,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generate match prediction
+  // Generate match prediction (calls Python ML API)
   app.post("/api/predict-match", async (req, res) => {
     try {
       const { team1Id, team2Id, venueId, tossWinner, tossDecision } = req.body;
-      
+
       if (!team1Id || !team2Id || !venueId || !tossWinner || !tossDecision) {
-        return res.status(400).json({ 
-          message: "Missing required fields: team1Id, team2Id, venueId, tossWinner, tossDecision" 
+        return res.status(400).json({
+          message:
+            "Missing required fields: team1Id, team2Id, venueId, tossWinner, tossDecision",
         });
       }
 
-      // Generate ML prediction
+      // Call ML backend
       const mlResult = await mlService.generatePrediction({
         team1Id,
         team2Id,
@@ -88,7 +86,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tossDecision,
       });
 
-      // Store prediction
+      // Store prediction in DB
       const predictionData = {
         team1Id,
         team2Id,
@@ -104,7 +102,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const prediction = await storage.createPrediction(predictionData);
-      
+
       res.json({
         ...prediction,
         teams: {
@@ -126,11 +124,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const progression = await mlService.generateLivePrediction(matchState);
       res.json({ progression });
     } catch (error) {
+      console.error("Live prediction error:", error);
       res.status(500).json({ message: "Failed to generate live prediction" });
     }
   });
 
-  // Get all predictions
+  // Get all past predictions
   app.get("/api/predictions", async (req, res) => {
     try {
       const predictions = await storage.getPredictions();
