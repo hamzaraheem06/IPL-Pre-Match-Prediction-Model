@@ -1,9 +1,107 @@
 import pandas as pd
 from collections import deque
-
-
 from collections import defaultdict
-import pandas as pd
+
+
+def calculate_rolling_stats(df):
+    team_stats = {}
+    venue_stats = {}        # {venue: {team: {"matches": int, "wins": int}}}
+    h2h_stats = {}          # {(team1, team2): {"matches": int, "wins": int}}
+
+    features = []
+
+    for _, row in df.iterrows():
+        t1, t2 = row["team1"], row["team2"]
+        venue = row["venue"]
+
+        # Initialize team stats
+        for team in [t1, t2]:
+            if team not in team_stats:
+                team_stats[team] = {"matches": 0, "wins": 0, "streak": 0, "recent": []}
+
+        # Initialize venue stats
+        if venue not in venue_stats:
+            venue_stats[venue] = {}
+        for team in [t1, t2]:
+            if team not in venue_stats[venue]:
+                venue_stats[venue][team] = {"matches": 0, "wins": 0}
+
+        # Initialize h2h stats
+        for a, b in [(t1, t2), (t2, t1)]:
+            if (a, b) not in h2h_stats:
+                h2h_stats[(a, b)] = {"matches": 0, "wins": 0}
+
+        # -------- GET FEATURES *BEFORE* MATCH -------- #
+        def get_team_features(team_f):
+            stats = team_stats[team_f]
+            matches, wins, streak, recent = stats["matches"], stats["wins"], stats["streak"], stats["recent"]
+            win_ratio = wins / matches if matches > 0 else 0.5
+            recent_form = sum(recent[-5:]) / min(len(recent), 5) if recent else 0.5
+            return win_ratio, recent_form, streak
+
+        def get_venue_features(team):
+            vstats = venue_stats[venue][team]
+            return vstats["wins"] / vstats["matches"] if vstats["matches"] > 0 else 0.5
+
+        def get_h2h_features(team_a, team_b):
+            hstats = h2h_stats[(team_a, team_b)]
+            return hstats["wins"] / hstats["matches"] if hstats["matches"] > 0 else 0.5
+
+        # Team stats
+        t1_wr, t1_form, t1_streak = get_team_features(t1)
+        t2_wr, t2_form, t2_streak = get_team_features(t2)
+
+        # Venue stats
+        t1_venue_wr = get_venue_features(t1)
+        t2_venue_wr = get_venue_features(t2)
+
+        # H2H stats
+        h2h_wr = get_h2h_features(t1, t2)
+
+        # Save features BEFORE current match is updated
+        features.append({
+            "team1_win_ratio": t1_wr,
+            "team2_win_ratio": t2_wr,
+            "team1_recent_form": t1_form,
+            "team2_recent_form": t2_form,
+            "team1_streak": t1_streak,
+            "team2_streak": t2_streak,
+            "venue_team1_winrate": t1_venue_wr,
+            "venue_team2_winrate": t2_venue_wr,
+            "head_to_head_winrate": h2h_wr,
+        })
+
+        # -------- UPDATE AFTER MATCH (safe: only affects future matches) -------- #
+        winner = row["winner"]
+
+        for team in [t1, t2]:
+            team_stats[team]["matches"] += 1
+            if team == winner:
+                team_stats[team]["wins"] += 1
+                team_stats[team]["streak"] = max(1, team_stats[team]["streak"] + 1)
+                team_stats[team]["recent"].append(1)
+            else:
+                team_stats[team]["streak"] = min(-1, team_stats[team]["streak"] - 1)
+                team_stats[team]["recent"].append(0)
+
+        for team in [t1, t2]:
+            venue_stats[venue][team]["matches"] += 1
+            if team == winner:
+                venue_stats[venue][team]["wins"] += 1
+
+        h2h_stats[(t1, t2)]["matches"] += 1
+        h2h_stats[(t2, t1)]["matches"] += 1
+        if winner == t1:
+            h2h_stats[(t1, t2)]["wins"] += 1
+        elif winner == t2:
+            h2h_stats[(t2, t1)]["wins"] += 1
+
+    # Merge rolling features into original dataframe
+    feats_df = pd.DataFrame(features)
+    df = df.reset_index(drop=True)
+    df = pd.concat([df, feats_df], axis=1)
+
+    return df
 
 def compute_rolling_features_balls(df, prior_matches=20):
     """
@@ -142,106 +240,6 @@ def compute_rolling_features_balls(df, prior_matches=20):
 
     return final_df
 
-def calculate_venue_features(df):
-    team_stats = {}
-    venue_stats = {}        # {venue: {team: {"matches": int, "wins": int}}}
-    h2h_stats = {}          # {(team1, team2): {"matches": int, "wins": int}}
-
-    features = []
-
-    for _, row in df.iterrows():
-        t1, t2 = row["team1"], row["team2"]
-        venue = row["venue"]
-
-        # Initialize team stats
-        for team in [t1, t2]:
-            if team not in team_stats:
-                team_stats[team] = {"matches": 0, "wins": 0, "streak": 0, "recent": []}
-
-        # Initialize venue stats
-        if venue not in venue_stats:
-            venue_stats[venue] = {}
-        for team in [t1, t2]:
-            if team not in venue_stats[venue]:
-                venue_stats[venue][team] = {"matches": 0, "wins": 0}
-
-        # Initialize h2h stats
-        for a, b in [(t1, t2), (t2, t1)]:
-            if (a, b) not in h2h_stats:
-                h2h_stats[(a, b)] = {"matches": 0, "wins": 0}
-
-        # -------- GET FEATURES *BEFORE* MATCH -------- #
-        def get_team_features(team_f):
-            stats = team_stats[team_f]
-            matches, wins, streak, recent = stats["matches"], stats["wins"], stats["streak"], stats["recent"]
-            win_ratio = wins / matches if matches > 0 else 0.5
-            recent_form = sum(recent[-5:]) / min(len(recent), 5) if recent else 0.5
-            return win_ratio, recent_form, streak
-
-        def get_venue_features(team):
-            vstats = venue_stats[venue][team]
-            return vstats["wins"] / vstats["matches"] if vstats["matches"] > 0 else 0.5
-
-        def get_h2h_features(team_a, team_b):
-            hstats = h2h_stats[(team_a, team_b)]
-            return hstats["wins"] / hstats["matches"] if hstats["matches"] > 0 else 0.5
-
-        # Team stats
-        t1_wr, t1_form, t1_streak = get_team_features(t1)
-        t2_wr, t2_form, t2_streak = get_team_features(t2)
-
-        # Venue stats
-        t1_venue_wr = get_venue_features(t1)
-        t2_venue_wr = get_venue_features(t2)
-
-        # H2H stats
-        h2h_wr = get_h2h_features(t1, t2)
-
-        # Save features BEFORE current match is updated
-        features.append({
-            "team1_win_ratio": t1_wr,
-            "team2_win_ratio": t2_wr,
-            "team1_recent_form": t1_form,
-            "team2_recent_form": t2_form,
-            "team1_streak": t1_streak,
-            "team2_streak": t2_streak,
-            "venue_team1_winrate": t1_venue_wr,
-            "venue_team2_winrate": t2_venue_wr,
-            "head_to_head_winrate": h2h_wr,
-        })
-
-        # -------- UPDATE AFTER MATCH (safe: only affects future matches) -------- #
-        winner = row["winner"]
-
-        for team in [t1, t2]:
-            team_stats[team]["matches"] += 1
-            if team == winner:
-                team_stats[team]["wins"] += 1
-                team_stats[team]["streak"] = max(1, team_stats[team]["streak"] + 1)
-                team_stats[team]["recent"].append(1)
-            else:
-                team_stats[team]["streak"] = min(-1, team_stats[team]["streak"] - 1)
-                team_stats[team]["recent"].append(0)
-
-        for team in [t1, t2]:
-            venue_stats[venue][team]["matches"] += 1
-            if team == winner:
-                venue_stats[venue][team]["wins"] += 1
-
-        h2h_stats[(t1, t2)]["matches"] += 1
-        h2h_stats[(t2, t1)]["matches"] += 1
-        if winner == t1:
-            h2h_stats[(t1, t2)]["wins"] += 1
-        elif winner == t2:
-            h2h_stats[(t2, t1)]["wins"] += 1
-
-    # Merge rolling features into original dataframe
-    feats_df = pd.DataFrame(features)
-    df = df.reset_index(drop=True)
-    df = pd.concat([df, feats_df], axis=1)
-
-    return df
-
 
 def calculate_toss_stats(matches, window=5):
     """
@@ -334,6 +332,11 @@ def calculate_toss_stats(matches, window=5):
             "team2_lost_toss_winrate": t2_lost_toss_winrate,
             "team1_form_toss_boost": t1_form_toss_boost,
             "team2_form_toss_boost": t2_form_toss_boost,
+            # Add missing diff features
+            "recent_toss_winrate_diff": t1_recent_toss_winrate - t2_recent_toss_winrate,
+            "lost_toss_winrate_diff": t1_lost_toss_winrate - t2_lost_toss_winrate,
+            "form_toss_boost_diff": t1_form_toss_boost - t2_form_toss_boost,
+            "recent_toss_bat_rate_diff": t1_recent_bat_rate - t2_recent_bat_rate,
         })
 
         # -------- UPDATE AFTER MATCH (use current match result) -------- #
@@ -542,7 +545,11 @@ def add_chasing_defending_strength(df):
     df["team1_pref_score_pressure"] = team1_pref_score_pressure
     df["team2_pref_score_pressure"] = team2_pref_score_pressure
     df["pref_score_diff_pressure"] = df["team1_pref_score_pressure"] - df["team2_pref_score_pressure"]
-
+    
+    # Add missing pressure diff features
+    df["chasing_strength_pressure_diff"] = df["team1_chasing_strength_pressure"] - df["team2_chasing_strength_pressure"]
+    df["defending_strength_pressure_diff"] = df["team1_defending_strength_pressure"] - df["team2_defending_strength_pressure"]
+    
     return df
 
 
@@ -658,7 +665,44 @@ def add_venue_features(df):
     df["venue_avg_target_run"] = avg_target_runs
     df["venue_chasing_win_rate"] = chasing_win_rates
     df["venue_defending_win_rate"] = defending_win_rates
-
+    
+    # Create the missing features that the trained model expects
+    df["venue_bat_first_winrate"] = defending_win_rates  # Batting first = defending
+    df["venue_chase_winrate"] = chasing_win_rates       # Same as venue_chasing_win_rate
+    
+    # Calculate venue_winrate_diff (bat first advantage)
+    df["venue_winrate_diff"] = df["venue_bat_first_winrate"] - df["venue_chase_winrate"]
+    
+    # Add venue_toss_bias: track whether teams prefer to bat/bowl first at this venue
+    venue_toss_decisions = {}
+    toss_bias_values = []
+    
+    for _, row in df.iterrows():
+        venue = row["venue"]
+        toss_decision = row["toss_decision"]
+        
+        # Get current bias before updating
+        if venue in venue_toss_decisions:
+            bat_decisions = venue_toss_decisions[venue].get("bat", 0)
+            total_decisions = venue_toss_decisions[venue].get("total", 0)
+            bias = (bat_decisions / total_decisions - 0.5) if total_decisions > 0 else 0.0  # Centered around 0
+        else:
+            bias = 0.0
+            
+        toss_bias_values.append(bias)
+        
+        # Update toss decisions after recording bias
+        if venue not in venue_toss_decisions:
+            venue_toss_decisions[venue] = {"bat": 0, "field": 0, "total": 0}
+            
+        if toss_decision == "bat":
+            venue_toss_decisions[venue]["bat"] += 1
+        else:
+            venue_toss_decisions[venue]["field"] += 1
+        venue_toss_decisions[venue]["total"] += 1
+    
+    df["venue_toss_bias"] = toss_bias_values
+    
     return df
 
 selected_features = [
@@ -716,7 +760,7 @@ selected_features = [
 "venue_avg_target_run",
 "venue_chasing_win_rate",
 "venue_bat_first_winrate",
-"venue_chase_winrate",
+"venue_chase_winrate", 
 "venue_winrate_diff",
 "venue_toss_bias",
 
@@ -747,7 +791,7 @@ selected_features = [
 "bowling_index_diff",
 
 # ---------------------------
-# Toss Decision One-Hot
+# Toss Decision One-Hot (created in transform_input)
 # ---------------------------
 "toss_decision_bat",
 "toss_decision_field",

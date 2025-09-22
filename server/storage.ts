@@ -214,96 +214,9 @@ export class MemStorage implements IStorage {
 
     venues.forEach((venue) => this.venues.set(venue.id, venue));
 
-    // Initialize head-to-head stats for MI vs CSK
-    const h2hStats: HeadToHeadStats = {
-      id: randomUUID(),
-      team1Id: "mi",
-      team2Id: "csk",
-      totalMatches: 34,
-      team1Wins: 20,
-      team2Wins: 14,
-    };
-    this.headToHeadStats.set(`mi-csk`, h2hStats);
-
-    // Initialize team stats
-    const miStats: TeamStats = {
-      id: randomUUID(),
-      teamId: "mi",
-      powerplayAvg: 52.3,
-      deathOversEconomy: 8.2,
-      recentForm: [true, true, false, true, true], // W, W, L, W, W
-      impactPlayers: [
-        {
-          name: "Rohit Sharma",
-          role: "Batsman",
-          impactScore: 8.4,
-          initials: "RS",
-        },
-        {
-          name: "Jasprit Bumrah",
-          role: "Bowler",
-          impactScore: 7.5,
-          initials: "JB",
-        },
-        {
-          name: "Hardik Pandya",
-          role: "All-rounder",
-          impactScore: 7.2,
-          initials: "HP",
-        },
-      ],
-    };
-    this.teamStats.set("mi", miStats);
-
-    const cskStats: TeamStats = {
-      id: randomUUID(),
-      teamId: "csk",
-      powerplayAvg: 48.1,
-      deathOversEconomy: 9.1,
-      recentForm: [true, false, true, false, true], // W, L, W, L, W
-      impactPlayers: [
-        {
-          name: "MS Dhoni",
-          role: "Wicket-keeper",
-          impactScore: 7.8,
-          initials: "MS",
-        },
-        {
-          name: "Ravindra Jadeja",
-          role: "All-rounder",
-          impactScore: 7.3,
-          initials: "RJ",
-        },
-        {
-          name: "Deepak Chahar",
-          role: "Bowler",
-          impactScore: 6.9,
-          initials: "DC",
-        },
-      ],
-    };
-    this.teamStats.set("csk", cskStats);
-
-    // Initialize venue stats
-    const miWankhede: VenueStats = {
-      id: randomUUID(),
-      venueId: "wankhede",
-      teamId: "mi",
-      matches: 43,
-      wins: 31,
-      winRate: 72.1,
-    };
-    this.venueStats.set("wankhede-mi", miWankhede);
-
-    const cskWankhede: VenueStats = {
-      id: randomUUID(),
-      venueId: "wankhede",
-      teamId: "csk",
-      matches: 17,
-      wins: 7,
-      winRate: 41.2,
-    };
-    this.venueStats.set("wankhede-csk", cskWankhede);
+    // Note: Head-to-head stats, team stats, and venue stats are now
+    // dynamically computed from historical data via the ML service.
+    // This storage only maintains basic team and venue metadata.
   }
 
   // Teams

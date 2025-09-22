@@ -18,9 +18,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/venues", async (req, res) => {
     try {
       const venues = await storage.getVenues();
-      res.json(venues);
+      
+      // Enhance venue data with ML service details
+      const enhancedVenues = await Promise.all(venues.map(async (venue) => {
+        try {
+          const mlDetails = await mlService.getVenueDetails(venue.id);
+          if (mlDetails) {
+            return {
+              ...venue,
+              avgFirstInnings: mlDetails.avgFirstInnings,
+              boundaryPercentage: mlDetails.boundaryPercentage,
+              sixRate: mlDetails.sixRate,
+            };
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch ML details for venue ${venue.id}:`, error);
+        }
+        return venue;
+      }));
+      
+      res.json(enhancedVenues);
     } catch (error) {
+      console.error("Venues fetch error:", error);
       res.status(500).json({ message: "Failed to fetch venues" });
+    }
+  });
+
+  // Get venue details
+  app.get("/api/venue-details/:venueId", async (req, res) => {
+    try {
+      const { venueId } = req.params;
+      
+      // Try to fetch from ML service first
+      const mlDetails = await mlService.getVenueDetails(venueId);
+      if (mlDetails) {
+        return res.json(mlDetails);
+      }
+      
+      // Fallback to venue basic info from storage
+      const venue = await storage.getVenue(venueId);
+      if (!venue) {
+        return res.status(404).json({ message: "Venue not found" });
+      }
+      
+      res.json({
+        avgFirstInnings: venue.avgFirstInnings || 165,
+        boundaryPercentage: venue.boundaryPercentage || 15.0,
+        sixRate: venue.sixRate || 2.5,
+      });
+    } catch (error) {
+      console.error("Venue details error:", error);
+      res.status(500).json({ message: "Failed to fetch venue details" });
     }
   });
 
@@ -28,6 +76,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/head-to-head/:team1Id/:team2Id", async (req, res) => {
     try {
       const { team1Id, team2Id } = req.params;
+      
+      // Try to fetch from ML service first
+      const mlStats = await mlService.getHeadToHeadStats(team1Id, team2Id);
+      if (mlStats) {
+        return res.json(mlStats);
+      }
+      
+      // Fallback to storage if ML service fails
       const stats = await storage.getHeadToHeadStats(team1Id, team2Id);
       if (!stats) {
         return res
@@ -36,6 +92,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json(stats);
     } catch (error) {
+      console.error("Head-to-head stats error:", error);
       res.status(500).json({ message: "Failed to fetch head-to-head stats" });
     }
   });
@@ -44,12 +101,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/team-stats/:teamId", async (req, res) => {
     try {
       const { teamId } = req.params;
+      
+      // Try to fetch from ML service first
+      const mlStats = await mlService.getTeamStats(teamId);
+      if (mlStats) {
+        return res.json(mlStats);
+      }
+      
+      // Fallback to storage if ML service fails
       const stats = await storage.getTeamStats(teamId);
       if (!stats) {
         return res.status(404).json({ message: "Team stats not found" });
       }
       res.json(stats);
     } catch (error) {
+      console.error("Team stats error:", error);
       res.status(500).json({ message: "Failed to fetch team stats" });
     }
   });
@@ -58,9 +124,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/venue-stats/:venueId", async (req, res) => {
     try {
       const { venueId } = req.params;
+      
+      // Try to fetch from ML service first
+      const mlStats = await mlService.getVenueStats(venueId);
+      if (mlStats && mlStats.length > 0) {
+        return res.json(mlStats);
+      }
+      
+      // Fallback to storage if ML service fails
       const stats = await storage.getVenueStatsForVenue(venueId);
       res.json(stats);
     } catch (error) {
+      console.error("Venue stats error:", error);
       res.status(500).json({ message: "Failed to fetch venue stats" });
     }
   });

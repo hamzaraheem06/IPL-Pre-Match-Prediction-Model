@@ -5,16 +5,15 @@ from pydantic import BaseModel
 import joblib
 import pandas as pd
 import numpy as np
-from typing import Dict, Any
-import os
+from typing import Dict, Any, List
 from collections import defaultdict, deque
 
 # Import data loading and processing functions
 from clean_balls_data import summarize_match_data, pivot_match_data, normalize_team as normalize_team_balls
-from clean_match_data import normalize_team as normalize_team_match, normalize_match_type
+from clean_match_data import normalize_team as normalize_team_match, normalize_match_type  
 from features_engineering_encoding import (
-    compute_rolling_features_balls, 
-    calculate_venue_features, 
+    calculate_rolling_stats,
+    compute_rolling_features_balls,  
     calculate_toss_stats, 
     add_head_to_head_toss_advantage, 
     add_chasing_defending_strength,
@@ -22,6 +21,9 @@ from features_engineering_encoding import (
     add_venue_features,
     selected_features
 )
+from historical_stats import stats_calculator
+
+
 
 # Load and prepare data once at startup
 def load_and_process_data():
@@ -77,6 +79,8 @@ def load_and_process_data():
         # Summarize match data from ball-by-ball
         summary_df = summarize_match_data(ball_data)
         final_balls_df = pivot_match_data(summary_df)
+
+        final_balls_df = final_balls_df[final_balls_df['season_id'] != 2025 or final_balls_df['season_id'] != "2025"]
         
         # Merge match and ball data - we need to implement this properly without encoders
         # Drop team columns from ball data that conflict with match data
@@ -128,6 +132,52 @@ def create_team_venue_mappings():
 
 team_mapping, venue_mapping = create_team_venue_mappings()
 
+def compute_matchup_features(team1_name, team2_name, venue_name, toss_winner_name, toss_decision, historical_data):
+    """
+    Compute all matchup features for a given pair of teams/venue/toss setup.
+    Uses rolling + aggregated stats functions instead of dummy values.
+    """
+    try:
+        # Step 1: Filter historical data for these two teams
+        matchup_data = historical_data[
+            ((historical_data['team1'] == team1_name) & (historical_data['team2'] == team2_name)) |
+            ((historical_data['team1'] == team2_name) & (historical_data['team2'] == team1_name))
+        ].copy()
+
+        if matchup_data.empty:
+            print("⚠️ No historical matches found for this matchup. Returning defaults.")
+            return {f: 0.5 for f in selected_features}
+
+        # Step 2: Run the feature engineering pipeline
+        matchup_data = calculate_rolling_stats(matchup_data)
+        summary = summarize_match_data(matchup_data)
+        pivoted = pivot_match_data(summary)
+        matchup_data = compute_rolling_features_balls(pivoted)
+
+        data_team_toss = calculate_toss_stats(matchup_data)
+        matchup_data = pd.concat([matchup_data, data_team_toss], axis=1)
+        matchup_data = add_head_to_head_toss_advantage(matchup_data)
+        matchup_data = add_chasing_defending_strength(matchup_data)
+        matchup_data = add_diff_features(matchup_data)
+        matchup_data = add_venue_features(matchup_data)
+
+        # Step 3: Take the last row (latest match-based stats)
+        latest_features = matchup_data.iloc[-1].to_dict()
+
+        # Step 4: Add toss_decision one-hot encoding
+        latest_features['toss_decision_bat'] = 1 if toss_decision == "bat" else 0
+        latest_features['toss_decision_field'] = 1 if toss_decision == "field" else 0
+
+        # Step 5: Extract only selected_features
+        feature_vector = {f: latest_features.get(f, 0) for f in selected_features}
+
+        return feature_vector
+
+    except Exception as e:
+        print(f"❌ Error in compute_matchup_features: {e}")
+        return {f: 0.5 for f in selected_features}
+
+
 def transform_input(raw_input: dict):
     """Transform user input from UI into features for ML model"""
     try:
@@ -137,89 +187,51 @@ def transform_input(raw_input: dict):
         venue_name = venue_mapping.get(raw_input.get('venueId', '').lower())
         toss_winner_name = team_mapping.get(raw_input.get('tossWinner', '').lower())
         toss_decision = raw_input.get('tossDecision', 'bat').lower()
-        season = raw_input.get('season', 2024)
         
         if not all([team1_name, team2_name, venue_name, toss_winner_name]):
             raise ValueError("Invalid team or venue IDs provided")
         
-        # Create a new match entry
-        new_match = {
-            'match_id': 999999,  # Dummy match ID
-            'season': season,
-            'match_type': 'League',
-            'venue': venue_name,
-            'team1': team1_name,
-            'team2': team2_name,
-            'toss_winner': toss_winner_name,
-            'toss_decision': toss_decision,
-            'winner': team1_name,  # Dummy winner (not used in prediction)
-            'result': 'runs',
-            'target_runs': 160,  # Average target
-            'target_overs': 20,
-            'super_over': 'N',
-            'source': 'train'
-        }
-        
-        # Add dummy innings data (not used in selected features but needed for pipeline)
-        innings_cols = [
-            'total_runs', 'total_wickets', 'balls_bowled', 'pp_runs', 'pp_wickets',
-            'mo_runs', 'mo_wickets', 'do_runs', 'do_wickets', 'extras_runs',
-            'dot_balls', 'boundaries', 'run_rate', 'economy_rate', 'dot_ball_rate', 'boundary_rate'
-        ]
-        
-        for innings in [1, 2]:
-            for col in innings_cols:
-                new_match[f'innings{innings}_{col}'] = 0
-                
-        # Add the new match to historical data
+        # Use targeted feature computation instead of full pipeline
         if historical_data is not None:
-            # Convert new match to DataFrame
-            new_match_df = pd.DataFrame([new_match])
+            # Compute features specific to this matchup
+            matchup_features = compute_matchup_features(
+                team1_name, team2_name, venue_name, toss_winner_name, toss_decision, historical_data
+            )
             
-            # Combine with historical data
-            combined_data = pd.concat([historical_data, new_match_df], ignore_index=True)
-            combined_data = combined_data.sort_values(["season", "match_id"]).reset_index(drop=True)
+            if matchup_features is None:
+                raise ValueError("Failed to compute matchup features")
+                
+            # Create DataFrame with features in correct order
+            feature_data = pd.DataFrame([matchup_features])
             
-            # Apply all feature engineering steps
-            data_with_rolling = compute_rolling_features_balls(combined_data)
-            data_with_venue_team = calculate_venue_features(data_with_rolling)
-            data_with_toss = calculate_toss_stats(data_with_venue_team)
-            data_with_toss = pd.concat([data_with_venue_team, data_with_toss], axis=1)
-            
-            # Handle season formatting
-            data_with_toss["season"] = data_with_toss["season"].replace({"2020/21": "2020", "2009/10": "2010", "2007/08": "2008"})
-            data_with_toss["season"] = pd.to_numeric(data_with_toss["season"], errors='coerce').astype('Int64')
-            
-            # Add more features
-            data_with_h2h_toss = add_head_to_head_toss_advantage(data_with_toss)
-            data_with_chase_defend = add_chasing_defending_strength(data_with_h2h_toss)
-            data_with_diff = add_diff_features(data_with_chase_defend)
-            data_with_venue_features = add_venue_features(data_with_diff)
-            
-            # Create target column (not used for prediction)
-            data_with_venue_features["target"] = (data_with_venue_features["team1"] == data_with_venue_features["winner"]).astype(int)
-            
-            # Fill NaN values
-            final_data = data_with_venue_features.fillna(0)
-            
-            # Create toss decision one-hot encoding
-            final_data["toss_decision_bat"] = (final_data["toss_decision"] == "bat").astype(int)
-            final_data["toss_decision_field"] = (final_data["toss_decision"] == "field").astype(int)
-            
-            # Get the last row (our prediction row)
-            prediction_row = final_data.iloc[-1:]
-            
-            # Select only the features needed for the model
-            feature_data = prediction_row[selected_features].copy()
-            print(feature_data)
-            
-            # Create factors for explanation
+            # Extract factors from the computed features
             factors = {
-                "venueAdvantage": float(feature_data.get('venue_team1_winrate', [0])[0] - feature_data.get('venue_team2_winrate', [0])[0]) if 'venue_team1_winrate' in feature_data.columns else 0,
-                "tossDecision": float(feature_data.get('toss_match_winrate_diff', [0])[0]) if 'toss_match_winrate_diff' in feature_data.columns else 0,
-                "recentForm": float(feature_data.get('recent_form_diff', [0])[0]) if 'recent_form_diff' in feature_data.columns else 0,
-                "headToHead": float(feature_data.get('head_to_head_winrate', [0])[0]) if 'head_to_head_winrate' in feature_data.columns else 0
+                "venueAdvantage": float(matchup_features.get('venue_winrate_diff', 0)),
+                "tossDecision": float(matchup_features.get('toss_match_winrate_diff', 0)),
+                "recentForm": float(matchup_features.get('recent_form_diff', 0)),
+                "headToHead": float(matchup_features.get('head_to_head_winrate', 0.5))
             }
+            
+            # Convert to percentages and cap values
+            factors = {
+                "venueAdvantage": max(-50, min(50, factors["venueAdvantage"] * 100)),
+                "tossDecision": max(-30, min(30, factors["tossDecision"] * 100)),
+                "recentForm": max(-40, min(40, factors["recentForm"] * 100)),
+                "headToHead": max(-60, min(60, (factors["headToHead"] - 0.5) * 200))  # Center around 0.5 and scale to percentage
+            }
+            
+            # Ensure we have all required features
+            missing_features = [f for f in selected_features if f not in feature_data.columns]
+            if missing_features:
+                print(f"⚠️ Warning: {len(missing_features)} features missing from targeted computation: {missing_features[:3]}...")
+                for feature in missing_features:
+                    feature_data[feature] = 0.0
+            
+            # Select features in the correct order
+            feature_data = feature_data[selected_features]
+            
+            print(f"✅ Targeted computation: {len(selected_features)}/{len(selected_features)} features")
+            print(f"🎯 Factors: Venue:{factors['venueAdvantage']:.1f}%, H2H:{factors['headToHead']:.1f}%, Form:{factors['recentForm']:.1f}%, Toss:{factors['tossDecision']:.1f}%")
             
             return feature_data, factors
         else:
@@ -276,6 +288,38 @@ class PredictionResponse(BaseModel):
     expectedMargin: str
     factors: Dict[str, float]
 
+class HeadToHeadResponse(BaseModel):
+    team1Id: str
+    team2Id: str
+    totalMatches: int
+    team1Wins: int
+    team2Wins: int
+
+class ImpactPlayer(BaseModel):
+    name: str
+    role: str
+    impactScore: float
+    initials: str
+
+class TeamStatsResponse(BaseModel):
+    teamId: str
+    powerplayAvg: float
+    deathOversEconomy: float
+    recentForm: List[bool]
+    impactPlayers: List[ImpactPlayer]
+
+class VenueStatResponse(BaseModel):
+    venueId: str
+    teamId: str
+    matches: int
+    wins: int
+    winRate: float
+
+class VenueDetailsResponse(BaseModel):
+    avgFirstInnings: int
+    boundaryPercentage: float
+    sixRate: float
+
 # Health endpoint
 @app.get("/health")
 def health():
@@ -331,3 +375,46 @@ def predict(req: PredictionRequest):
         "factors": factors
     }
     return response
+
+# Historical Stats Endpoints
+@app.get("/head-to-head/{team1_id}/{team2_id}", response_model=HeadToHeadResponse)
+def get_head_to_head_stats(team1_id: str, team2_id: str):
+    """Get historical head-to-head statistics between two teams"""
+    try:
+        stats = stats_calculator.get_head_to_head_stats(team1_id, team2_id)
+        if stats is None:
+            raise HTTPException(status_code=404, detail="Head-to-head stats not found")
+        return HeadToHeadResponse(**stats)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching head-to-head stats: {e}")
+
+@app.get("/team-stats/{team_id}", response_model=TeamStatsResponse)
+def get_team_stats(team_id: str):
+    """Get comprehensive team statistics"""
+    try:
+        stats = stats_calculator.get_team_stats(team_id)
+        if stats is None:
+            raise HTTPException(status_code=404, detail="Team stats not found")
+        return TeamStatsResponse(**stats)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching team stats: {e}")
+
+@app.get("/venue-stats/{venue_id}", response_model=List[VenueStatResponse])
+def get_venue_stats(venue_id: str):
+    """Get venue statistics for all teams"""
+    try:
+        stats = stats_calculator.get_venue_stats(venue_id)
+        return [VenueStatResponse(**stat) for stat in stats]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching venue stats: {e}")
+
+@app.get("/venue-details/{venue_id}", response_model=VenueDetailsResponse)
+def get_venue_details(venue_id: str):
+    """Get venue details including batting conditions"""
+    try:
+        details = stats_calculator.get_venue_details(venue_id)
+        if details is None:
+            raise HTTPException(status_code=404, detail="Venue details not found")
+        return VenueDetailsResponse(**details)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching venue details: {e}")
